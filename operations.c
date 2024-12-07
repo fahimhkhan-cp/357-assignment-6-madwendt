@@ -4,12 +4,13 @@
 #include <ctype.h>
 
 #define MAX_LINE 2048
-#define MAX_ENTRIES 5000
+#define MAX_ENTRIES 4000
+#define MAX_LINE2 4096
 
 // Define structure for county data
 typedef struct {
-    char county[100];
-    char state[3];
+    char county[200];
+    char state[32];
     float education_high_school;
     float education_bachelors_or_higher;
     float ethnicities[10];
@@ -29,13 +30,11 @@ void process_operations_file(const char *filename);
 void display_data(int data_count, CountyData *data);
 void filter_state(const char *state);
 void filter_field(const char *field, const char *op, float value);
-void calculate_population_total();
-void calculate_subpopulation(const char *field);
-void calculate_percentage(const char *field);
-int is_valid_field(const char *field, float *value, CountyData entry);
+void calc_tot_pop();
+void calc_population(char *field);
 
-#include <string.h>
-#include <_string.h>
+
+
 
 // Utility function to remove quotes from strings
 void strip_quotes(char *str) {
@@ -55,23 +54,26 @@ int load_demographics_file(const char *filename, CountyData *data) {
     }
 
     char line[MAX_LINE];
+    char line0[MAX_LINE];
     int line_num = 0;
 
-    // Skip header
-    fgets(line, MAX_LINE, file);
+    fgets(line, sizeof(line), file);
 
+   
+    
     // Read data
     while (fgets(line, sizeof(line), file)) {
-        line_num++;
+        
         int columns = 0;
         int column_count = 0;
-        CountyData entry;
+        //CountyData entry;
         char *token = strtok(line, ",");
         //printf("\tnew line of file\n");
         while(token){
-            //printf("\t\t before strip %s\n", token);
             strip_quotes(token);
             //printf("\t\t  after strip %s\n", token);
+            //printf("COLUMN: %d\n", columns);
+            
             switch (columns){
                 case 0:
                     strncpy(data[line_num].county, token, sizeof(data[line_num].county)-1);
@@ -193,27 +195,32 @@ int load_demographics_file(const char *filename, CountyData *data) {
 
 
             }
+            
 
             token = strtok(NULL, ",");
             columns++;
 
         }
+
         if (column_count == 16){
             line_num++;
         }
         
-        
+        /*
         // Add valid entry to data array
         if (data_count < MAX_ENTRIES) {
             data[data_count++] = entry;
         } else {
             fprintf(stderr, "Error: Maximum number of entries exceeded.\n");
             break;
-        }
+        } */
 
     }
-
+    //printf("cat");
     fclose(file);
+    //printf("cat");
+    data_count = line_num;
+    //printf("cat");
     printf("Loaded %d entries from demographics file.\n", data_count);
     return 0;
     
@@ -256,21 +263,21 @@ void process_operations_file(const char *filename) {
             float value = atof(value_str);
             filter_field(field, op, value);
         } else if (strcmp(operation, "population-total") == 0) {
-            calculate_population_total();
+            calc_tot_pop();
         } else if (strcmp(operation, "population") == 0) {
             char *field = strtok(NULL, ":");
             if (!field) {
                 fprintf(stderr, "Error: Malformed operation on line %d.\n", line_num);
                 continue;
             }
-            calculate_subpopulation(field);
+            calc_population(field);
         } else if (strcmp(operation, "percent") == 0) {
             char *field = strtok(NULL, ":");
             if (!field) {
                 fprintf(stderr, "Error: Malformed operation on line %d.\n", line_num);
                 continue;
             }
-            calculate_percentage(field);
+            calc_population(field);
         } else {
             fprintf(stderr, "Error: Unknown operation '%s' on line %d.\n", operation, line_num);
         }
@@ -306,7 +313,6 @@ void display_data(int entries, CountyData *data){
         printf("\t2014 Population: %d\n\n", data[n].population_2014);
     }
     printf("printed %d entries ...\n", entries);
-    return;
 }
 
 
@@ -321,71 +327,109 @@ void filter_state(const char *state) {
     printf("Filter: state == %s (%d entries)\n", state, count);
 }
 
-// Filter by field
 void filter_field(const char *field, const char *op, float value) {
     int count = 0;
     for (int i = 0; i < data_count; i++) {
         float field_value = 0;
-        if (is_valid_field(field, &field_value, data[i])) {
-            if ((strcmp(op, "ge") == 0 && field_value >= value) ||
-                (strcmp(op, "le") == 0 && field_value <= value)) {
-                data[count++] = data[i];
-            }
+
+        if (strcmp(field, "Education.Bachelor's Degree or Higher") == 0) {
+            field_value = data[i].education_bachelors_or_higher;
+        } else if (strcmp(field, "Education.High School or Higher") == 0) {
+            field_value = data[i].education_high_school;
+        } else if (strcmp(field, "Ethnicities.American Indian and Alaska Native Alone") == 0) {
+            field_value = data[i].ethnicities[0];
+        } else if (strcmp(field, "Ethnicities.Asian Alone") == 0) {
+            field_value = data[i].ethnicities[1];
+        } else if (strcmp(field, "Ethnicities.Black Alone") == 0) {
+            field_value = data[i].ethnicities[2];
+        } else if (strcmp(field, "Ethnicities.Hispanic or Latino") == 0) {
+            field_value = data[i].ethnicities[3];
+        } else if (strcmp(field, "Ethnicities.Native Hawaiian and Other Pacific Islander Alone") == 0) {
+            field_value = data[i].ethnicities[4];
+        } else if (strcmp(field, "Ethnicities.Two or More Races") == 0) {
+            field_value = data[i].ethnicities[5];
+        } else if (strcmp(field, "Ethnicities.White Alone") == 0) {
+            field_value = data[i].ethnicities[5];
+        } else if (strcmp(field, "Ethnicities.White Alone Not Hispanic or Latino") == 0) {
+            field_value = data[i].ethnicities[7];
+        } else if (strcmp(field, "Income_median_household") == 0) {
+            field_value = data[i].income_median_household;
+        } else if (strcmp(field, "Income_per_capita") == 0) {
+            field_value = data[i].income_per_capita;
+        } else if (strcmp(field, "Income_below_poverty") == 0) {
+            field_value = data[i].income_below_poverty;
+        } else if (strcmp(field, "Population_2014") == 0) {
+            field_value = data[i].population_2014;
+        }
+
+        if ((strcmp(op, "ge") == 0 && field_value >= value) ||
+            (strcmp(op, "le") == 0 && field_value <= value)) {
+            data[count++] = data[i];
         }
     }
     data_count = count;
     printf("Filter: %s %s %.2f (%d entries)\n", field, op, value, data_count);
 }
 
+
 // Calculate total population
-void calculate_population_total() {
+void calc_population(char *field) {
+    int num_line;
+    float total = 0.0;
+    float temp;
+
+    for(num_line= 0; num_line < data_count; num_line++){
+        if ((strcmp(field, "Education.Bachelor's Degree or Higher")) == 0){
+            temp = (data[num_line].education_bachelors_or_higher/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Education.High School or Higher")) == 0){
+            temp = (data[num_line].education_high_school/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.American Indian and Alaska Native Alone")) == 0){
+            temp = (data[num_line].ethnicities[0]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.Asian Alone")) == 0){
+            temp = (data[num_line].ethnicities[1]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.Black alone")) == 0){
+            temp = (data[num_line].ethnicities[2]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.Hispanic or Latino")) == 0){
+            temp = (data[num_line].ethnicities[3]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.Native Hawaiian and Other Pacific Islander Alone")) == 0){
+            temp = (data[num_line].ethnicities[4]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.Two or More Races")) == 0){
+            temp = (data[num_line].ethnicities[5]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.White Alone")) == 0){
+            temp = (data[num_line].ethnicities[6]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Ethnicities.White Alone not Hispanic or Latino")) == 0){
+            temp = (data[num_line].ethnicities[7]/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else if((strcmp(field, "Income.Persons Below Poverty Level")) == 0){
+            temp = (data[num_line].income_below_poverty/100.0) * data[num_line].population_2014;
+            total = total + temp;
+        }else{
+            printf("Invalid Field Percantage");
+        }
+}
+}
+
+void calc_tot_pop(){
+
     int total = 0;
     for (int i = 0; i < data_count; i++) {
         total += data[i].population_2014;
-        
+     
     }
     printf("2014 population: %d\n", total);
 }
 
-// Calculate subpopulation
-void calculate_subpopulation(const char *field) {
-    int total = 0;
-    for (int i = 0; i < data_count; i++) {
-        float percentage = 0;
-        if (is_valid_field(field, &percentage, data[i])) {
-            total += (int)(data[i].population_2014 * (percentage / 100));
-        }
-    }
-    printf("2014 %s population: %d\n", field, total);
-}
 
-// Calculate percentage
-void calculate_percentage(const char *field) {
-    int sub_total = 0, total_population = 0;
-    for (int i = 0; i < data_count; i++) {
-        float percentage = 0;
-        if (is_valid_field(field, &percentage, data[i])) {
-            sub_total += (int)(data[i].population_2014 * (percentage / 100));
-        }
-        total_population += data[i].population_2014;
-    }
-    printf("2014 %s percentage: %.2f%%\n", field, (100.0 * sub_total) / total_population);
-}
 
-// Validate field and get value
-int is_valid_field(const char *field, float *value, CountyData entry) {
-    if (strcmp(field, "Education.High School or Higher") == 0) {
-        *value = entry.education_high_school;
-        return 1;
-    } else if (strcmp(field, "Education.Bachelor's Degree or Higher") == 0) {
-        *value = entry.education_bachelors_or_higher;
-        return 1;
-    } else if (strcmp(field, "Income.Persons Below Poverty Level") == 0) {
-        *value = entry.income_below_poverty;
-        return 1;
-    }
-    return 0;
-}
 
 // Main function
 int main(int argc, char *argv[]) {
